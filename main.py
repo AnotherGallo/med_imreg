@@ -29,9 +29,10 @@ if len(unaligned) > 0:
     base_imdata = base.load_im()
     for missing in unaligned:
         miss_imdata = missing.load_im()
-        aligned = frequency_alignment.run(miss_imdata, reference=base_imdata)
+        aligned, scale_diff = frequency_alignment.run(miss_imdata, reference=base_imdata)
         missing.aligned = (aligned*255).astype(np.uint8)
-        save_im(missing.aligned, path+"\\preprocessed\\"+missing.title)
+        missing.scale_factor = scale_diff
+        save_im(missing.aligned, os.path.join(path, "preprocessed", ims[0].title))
 
 ### GET FIJI INSTANCE ###
 setup_start = time.time()

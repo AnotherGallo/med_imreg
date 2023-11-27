@@ -11,6 +11,7 @@ class UserImage:
         self.is_reference = is_reference
         self._segmented = None
         self._aligned = None
+        self.scale_factor = 1
 
     def __str__(self):
         ref = " (Reference)" if self.is_reference else ""
