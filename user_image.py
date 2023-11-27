@@ -45,7 +45,7 @@ class UserImage:
         self._aligned = aligned
 
     def has_aligned(self):
-        return (os.path.isfile(self.path + "\\preprocessed\\" + self.title)
+        return (os.path.isfile(os.path.join(self.path, "preprocessed", self.title))
                 or self._aligned is not None or self.is_reference)
 
     @property
@@ -53,7 +53,9 @@ class UserImage:
         # Getter
         if self._segmented is None:
             try:
-                self._segmented = np.asarray(Image.open(self.path + "\\results\\" + self.title).convert("RGB"))
+                self._segmented = np.asarray(
+                    Image.open(os.path.join(self.path, "preprocessed", self.title))
+                    .convert("RGB"))
             except:
                 pass
         return self._segmented
@@ -63,5 +65,5 @@ class UserImage:
         self._segmented = segmented
 
     def has_segmented(self):
-        return (os.path.isfile(self.path + "\\preprocessed\\" + self.title)
+        return (os.path.isfile(os.path.join(self.path, "results", self.title))
                 or self._segmented is not None)

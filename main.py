@@ -9,8 +9,9 @@ from scipy import spatial
 from itertools import compress
 
 ### GET IMAGES ###
-# path = create_dir_dialog()
-path = "C:\\Users\\Jan\\Desktop\\ims"
+path = create_dir_dialog()
+# path = "C:\\Users\\Jan\\Desktop\\ims"
+print(path)
 if not is_valid_dir(path):
     print(f"Invalid path '{path}'. Terminating...")
     exit()
