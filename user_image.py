@@ -5,7 +5,8 @@ from PIL import Image
 
 class UserImage:
 
-    def __init__(self, path: str, is_reference: bool = False):
+    def __init__(self, image, path: str, is_reference: bool = False):
+        self.image = image
         self.path = os.path.dirname(path)
         self.title = os.path.basename(path)
         self.is_reference = is_reference
@@ -22,7 +23,7 @@ class UserImage:
         Reads the image data from drive.
         :return: Image data as np.ndarray.
         """
-        im = np.asarray(Image.open(os.path.join(self.path,self.title)).convert("RGB"))
+        im = np.asarray(Image.open(os.path.join(self.path, self.title)).convert("RGB"))
         return im
 
     @property

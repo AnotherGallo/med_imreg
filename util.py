@@ -3,6 +3,7 @@ import tkinter
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 from user_image import UserImage
 
 import os
@@ -39,7 +40,7 @@ def is_valid_dir(usr_path: str) -> bool:
 #     return im
 
 
-def get_images(path: str):
+def get_images(path: str) -> list[UserImage]:
     """
     Returns list containing all images in a directory.
     :param path: Directory containing the images.
@@ -54,7 +55,8 @@ def get_images(path: str):
             if file.endswith((".png", ".jpg", ".jpeg")):
                 im_path = os.path.join(root, file)
                 print(f'Loading image {im_path}')
-                im = UserImage(im_path)
+                im, Image.open(im_path)
+                im = UserImage(im, im_path)
                 ims.append(im)
         break
     return ims
@@ -64,7 +66,13 @@ def save_im(im, path: str):
     directory = os.path.dirname(path)
     Path(directory).mkdir(parents=True, exist_ok=True)
     print(f"Saving image {path}")
-    Image.fromarray(im).save(path)
+
+    im_data = im.aligned
+    image = Image.fromarray(im_data)
+
+    meta = PngInfo()
+    meta.add_text("ScaleFactor", im.scale_factor)
+    image.save(path, pnginfo=meta)
 
 
 def crop_center(im: np.ndarray, crop_x: int, crop_y: int) -> np.ndarray:
