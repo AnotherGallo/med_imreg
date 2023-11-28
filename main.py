@@ -16,6 +16,11 @@ if not is_valid_dir(path):
     print(f"Invalid path '{path}'. Terminating...")
     exit()
 ims = get_images(path)
+
+if not ims:
+    print(f'No images found in {path}')
+    exit(1)
+
 ims[0].is_reference = True
 ims[1].has_aligned()
 
