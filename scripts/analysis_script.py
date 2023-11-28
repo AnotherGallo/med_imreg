@@ -5,10 +5,11 @@
 
 from ij import IJ
 from ij.measure import ResultsTable
+import os
 
-cock = "ock"
 print("Analyzing...")
-csv_path = path + "\\" + image.getTitle() + suffix + ".csv"
+csv_path = os.path.join(path, image.getTitle() + suffix + ".csv")
+print(csv_path)
 
 fields = ["area", "center"]
 IJ.run("Set Measurements...",
@@ -17,5 +18,5 @@ IJ.run(image, "Analyze Particles...", "size=100-3000 display clear include overl
 
 table = ResultsTable.getActiveTable()
 print("Saving table: " + csv_path)
-table.save(path + "\\" + image.getTitle() + suffix + ".csv")
+table.save(csv_path)
 print("Finished analyzing {0}.".format(image.getTitle()))
