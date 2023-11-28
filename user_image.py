@@ -1,14 +1,18 @@
 import os
 import numpy as np
 from PIL import Image
+from pathlib import Path
 
 
 class UserImage:
 
     def __init__(self, image, path: str, is_reference: bool = False):
+        p = Path(path)
+        self.directory = p.parent
+        self.title = p.stem
+        self.extension = p.suffix
+
         self.image = image
-        self.path = os.path.dirname(path)
-        self.title = os.path.basename(path)
         self.is_reference = is_reference
         self._segmented = None
         self._aligned = None
@@ -16,14 +20,14 @@ class UserImage:
 
     def __str__(self):
         ref = " (Reference)" if self.is_reference else ""
-        return self.path + self.title + ref
+        return self.directory + self.title + ref
 
     def load_im(self) -> np.array:
         """
         Reads the image data from drive.
         :return: Image data as np.ndarray.
         """
-        im = np.asarray(Image.open(os.path.join(self.path, self.title)).convert("RGB"))
+        im = np.asarray(self.image)
         return im
 
     @property
@@ -35,7 +39,8 @@ class UserImage:
             self._aligned = self.load_im()
         else:
             try:
-                self._aligned = np.asarray(Image.open(self.path + "\\preprocessed\\" + self.title).convert("RGB"))
+                self._aligned = np.asarray(
+                    Image.open(os.path.join(self.directory, "preprocessed", self.title)).convert("RGB"))
             except:
                 pass
 
@@ -46,7 +51,7 @@ class UserImage:
         self._aligned = aligned
 
     def has_aligned(self):
-        return (os.path.isfile(os.path.join(self.path, "preprocessed", self.title))
+        return (os.path.isfile(os.path.join(self.directory, "preprocessed", self.title))
                 or self._aligned is not None or self.is_reference)
 
     @property
@@ -55,7 +60,7 @@ class UserImage:
         if self._segmented is None:
             try:
                 self._segmented = np.asarray(
-                    Image.open(os.path.join(self.path, "preprocessed", self.title))
+                    Image.open(os.path.join(self.directory, "results", self.title))
                     .convert("RGB"))
             except:
                 pass
@@ -66,5 +71,5 @@ class UserImage:
         self._segmented = segmented
 
     def has_segmented(self):
-        return (os.path.isfile(os.path.join(self.path, "results", self.title))
+        return (os.path.isfile(os.path.join(self.directory, "results", self.title))
                 or self._segmented is not None)
