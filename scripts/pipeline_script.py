@@ -1,10 +1,13 @@
-# @ ij.ImagePlus[] images
+# @ String directory
+# @ String title
+# @ String suffix
 # @OUTPUT ij.ImagePlus[] results
 
 from ij import IJ, plugin
 from ij import gui
 import ij.WindowManager as WM
 
+import os
 import sys
 import time
 
@@ -84,19 +87,21 @@ def low_thresh(channels, title=""):
 
 
 def pipeline(ims):
+    print("Running segmentation...")
     start = time.time()
 
     # takes separate RGB channels and combines them into a single RGB image
-    for i, im in enumerate(ims):
-        title = "im {0}".format(i)
-        im.setTitle(title)
-        im.show()
-        IJ.run("Stack to RGB")
-        im.hide()
-        ims[i] = WM.getImage(title + " (RGB)")
+    # for i, im in enumerate(ims):
+    #     title = "im {0}".format(i)
+    #     im.setTitle(title)
+    #     im.show()
+    #     IJ.run("Stack to RGB")
+    #     im.hide()
+    #     ims[i] = WM.getImage(title + " (RGB)")
 
     results = []
     for im in ims:
+        print(im)
         # deconvolve and pairwise add channels
         channels = deconvolve_channels(im)
         ch_copy = [ch.duplicate() for ch in channels]
@@ -132,7 +137,7 @@ def pipeline(ims):
 
 ### CLEAN UP PREVIOUS SESSION ###
 def cleanup():
-    confirmed = False
+    confirmed = True
     for imgTitle in WM.getImageTitles():
         if not confirmed:
             caution_msg = "You are about to close all open images. Proceed?"
@@ -153,12 +158,19 @@ if __name__ == '__main__':
     cleanup()
 
     ### PROCESS IMAGES ###
+    images = []
     results = None
-    if len(images) >= 1:
+    if len(images) >= 0:
+        print(os.path.join(directory, title + suffix).replace("\\", "/"))
+        images.append(IJ.openImage(os.path.join(directory, title + suffix).replace("\\", "/")))
         results = pipeline(images)
 
     for i, result in enumerate(results):
+        print("Result: {0}".format(result))
         result.setRoi(None)
         result.show()
+        print("Saving to {0}".format(
+            os.path.join(directory, "results", title + suffix).replace(("\\", "/"))))
+        IJ.saveAs(im, "Tiff", os.path.join(directory, "results", title + suffix).replace(("\\", "/")))
 
     print("Process finished.")

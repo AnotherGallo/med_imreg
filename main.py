@@ -5,41 +5,90 @@ import numpy as np
 import time
 import csv
 import xarray
-from scipy import spatial
-from itertools import compress
 
 ### GET IMAGES ###
-path = create_dir_dialog()
-# path = "C:\\Users\\Jan\\Desktop\\ims"
-print(path)
+# Get path from user, exit if invalid
+# path = create_dir_dialog()
+path = "C:/Users/Jan/Desktop/test_ims/tiffs"
 if not is_valid_dir(path):
-    print(f"Invalid path '{path}'. Terminating...")
+    print(f"Invalid path '{path}'. Exiting...")
     exit()
+
+# Try loading images, exit if none found
 ims = get_images(path)
-
 if not ims:
-    print(f'No images found in {path}')
-    exit(1)
+    print(f'No images found in {path}. Exiting...')
+    exit()
 
-ims[0].is_reference = True
-ims[1].has_aligned()
+# Ask for reference image, exit if none provided
+# ref_title = create_file_dialog(path)
+ref_title = ims[0].path
+if not ref_title:
+    print(f'No file chosen. Exiting...')
+    exit()
 
-### ALIGN IMAGES ###
-unaligned = [im for im in ims if not im.has_aligned()]
-if len(unaligned) > 0:
+# Catch sudden changes in files contained in directory
+tries = 0
+while tries < 3:
+    if ref_title in [im.path for im in ims]:
+        for im in ims:
+            if im.path == ref_title:
+                im.is_reference = True
+                break
+        break
+    else:
+        ims = get_images(path)
+        tries += 1
+
+if not any(im.is_reference for im in ims):
+    print(f'No reference image found. Exiting...')
+    exit()
+
+### GET IMAGE ALIGNMENT PARAMETERS ###
+base = next((im for im in ims if im.is_reference))
+all_transforms = get_transforms(path, base.title)
+
+# if some images miss alignments relative to the base, compute and append them to dict
+unaligned = [im for im in ims if im.path not in all_transforms and not im.is_reference]
+if unaligned:
     print(f'Missing alignments ({len(unaligned)} / {len(ims)-1}):')
     for missing in unaligned:
         print(f' - {missing.title}')
 
-    base = next((im for im in ims if im.is_reference))
-    base_imdata = base.load_im()
+    base_imdata = base.scaled_down
+    base_imdata = base_imdata.numpy()
     for missing in unaligned:
-        miss_imdata = missing.load_im()
-        aligned, scale_diff = frequency_alignment.run(miss_imdata, reference=base_imdata)
-        missing.aligned = (aligned*255).astype(np.uint8)
-        save_im(missing, os.path.join(path, "preprocessed", missing.title))
+        miss_imdata = missing.scaled_down
+        miss_imdata = miss_imdata.numpy()
+        transform, rel_translate = frequency_alignment.run(miss_imdata, reference=base_imdata)
+
+        rx, ry = rel_translate
+        shift_y = ry * missing.image.width
+        shift_x = rx * missing.image.height
+
+
+        transform_dict = {'rotation': transform.rotation,
+                          'shift x': shift_x,
+                          'shift y': shift_y,
+                          'scale': transform.scale[0]}
+        missing.alignment = transform_dict
+        all_transforms[missing.path] = transform_dict
+
+    transforms_to_disk(path, base.title, all_transforms)
+else:
+    print("Alignment for all images present. Skipping computation, loading from file...\n"
+          f"If you want to recompute the alignments, delete {os.path.join(path, base.title)}.json.")
+
+### APPLY ALIGNMENT PARAMETERS ###
+# TODO: fix writing to disk of image data
+for im in [imm for imm in ims if not imm.is_reference]:
+    # Align and write image to disc
+    im.alignment = all_transforms[im.path]
+    im.aligned = im.image.rotate(-im.alignment["rotation"], idx=im.alignment["shift x"], idy=im.alignment["shift y"])
+    im.image.write_to_file(im.path)
 
 ### GET FIJI INSTANCE ###
+print(f'Loading Fiji...')
 setup_start = time.time()
 ij = imagej.init('sc.fiji:fiji:2.14.0', mode="interactive")
 print(f'Init in {time.time() - setup_start}s')
@@ -48,34 +97,36 @@ print(f'Init in {time.time() - setup_start}s')
 with open("scripts/pipeline_script.py") as f:
     script = f.read()
     for im in [im for im in ims if not im.has_segmented()]:
-        args = {"images": [im.load_im()]}
+        args = {"directory": im.directory,
+                "title": im.title,
+                "suffix": im.suffix}
         script_output = ij.py.run_script("python", script, args).getOutputs()
+
         results = script_output["results"]
         pysults = [ij.py.from_java(result) for result in results]
         numsults = [xarray.DataArray.to_numpy(pysult) for pysult in pysults]
-        save_im(numsults[0], im.path + "\\results\\" + im.title)
+        im.segmented = numsults[0]
 
+### UNDO TRANSFORMS - RESTORE ORIGINAL IMAGES ###
+for im in [imm for imm in ims if not imm.is_reference]:
+    target = pyvips.Target.new_to_file(im.path)
+    im.image.write_to_target(target, im.suffix)
 
-# jaligned = [ij.py.to_imageplus(np.transpose(im, (2, 0, 1))) for im in aligned]
-# with open("scripts/pipeline_script.py") as f:
-#     script = f.read()
-#     args = {"images": jaligned}
-#     script_output = ij.py.run_script("python", script, args).getOutputs()
-# results = script_output["results"]
-# pysults = [ij.py.from_java(result) for result in results]
-# numsults = [xarray.DataArray.to_numpy(pysult) for pysult in pysults]
-#
-# for num, title in zip(numsults, titles):
-#     save_im(num, path+"\\results\\"+title)
 
 ### ANALYZE IMAGES ###
+# TODO: Doesn't work at all yet. Remove break statement to run
 particles = []
 with (open("scripts/analysis_script.py") as f):
     script = f.read()
-    for res in results:
+    for im in ims:
+        break
         suffix = "_results"
-        args = {"image": res, "path": path, "suffix": suffix}
+        args = {"image": ij.py.to_imageplus(im.segmented),
+                "path": im.directory,
+                "title": im.title,
+                "suffix": suffix}
         script_output = ij.py.run_script("python", script, args).getOutputs()
+
         im_particles = []
         with open(ij.py.from_java(script_output["csv_path"])) as csvfile:
             reader = csv.DictReader(f=csvfile)
@@ -86,19 +137,3 @@ with (open("scripts/analysis_script.py") as f):
         particles.append(np.array(im_particles))
 
 print("Analysis complete.")
-
-### FIND MATCHING PARTICLES BASED ON RELATIVE DISTANCE ###
-for i in range(len(particles) - 1):
-    ref = particles[i]
-    comp = particles[i+1]
-    distances = spatial.distance.cdist(ref[:, :2], comp[:, :2])
-    closest = np.argmin(distances, axis=1)
-    for j in range(len(closest)):
-        ref_size = ref[j]
-    1
-
-
-
-# show_ims(*numsults, gray=True)
-# py_tables = [ij.py.from_java(table) for table in tables]
-print("Main finished.")

@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import tkinter
 from tkinter import filedialog
@@ -5,6 +6,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from user_image import UserImage
+import pyvips
 
 import os
 from pathlib import Path
@@ -18,7 +20,12 @@ def create_dir_dialog() -> str:
     root = tkinter.Tk()
     root.withdraw()
 
-    return filedialog.askdirectory(initialdir="/Users/janlarionow/Desktop/imgs")
+    return filedialog.askdirectory()
+
+def create_file_dialog(path) -> str:
+    root = tkinter.Tk()
+    root.withdraw()
+    return filedialog.askopenfilename(initialdir=path)
 
 
 def is_valid_dir(usr_path: str) -> bool:
@@ -30,14 +37,32 @@ def is_valid_dir(usr_path: str) -> bool:
     return os.path.exists(usr_path) and os.path.isdir(usr_path)
 
 
-# def load_im(path: str) -> np.ndarray:
-#     """
-#     Reads an image under the given path.
-#     :param path: String representing the path of the image.
-#     :return: Image data as np.ndarray.
-#     """
-#     im = np.asarray(Image.open(path).convert("RGB"))
-#     return im
+def get_transforms(path, reference_title):
+    """
+    Load alignment data for the given reference image from disk.
+    :param path: Directory where the data is located.
+    :param reference_title: Title of the reference image, which ideally also is the title of the .JSON-File containing
+    the alignment parameters.
+    :return: Dictionary containing all alignment information. Creates new file if no file was found and returns an empty
+    dict if the file doesn't exist.
+    """
+    with open(os.path.join(path, reference_title + "-alignments.json").replace("/","\\"), "a+") as jf:
+        try:
+            jf.seek(0)
+            return json.loads(jf.read())
+        except json.decoder.JSONDecodeError:
+            return {}
+
+
+def transforms_to_disk(path, reference_title, data):
+    """
+    Writes alignment data to a .JSON-File
+    :param path: Directory where to store the data.
+    :param reference_title: Title of the reference. Used to name the .JSON-File.
+    :param data: Dict containing the alignment data.
+    """
+    with open(os.path.join(path, reference_title + "-alignments.json"), "w+") as jf:
+        json.dump(data, jf)
 
 
 def get_images(path: str) -> list[UserImage]:
@@ -52,26 +77,25 @@ def get_images(path: str) -> list[UserImage]:
     ims = []
     for root, dirs, files in os.walk(path):
         for file in sorted(files):
-            if file.endswith((".png", ".jpg", ".jpeg")):
-                im_path = os.path.join(root, file)
+            if file.endswith(tuple(pyvips.get_suffixes())):
+                im_path = os.path.join(root, file).replace("\\", "/")
                 print(f'Loading image {im_path}')
-                im, Image.open(im_path)
+                im = pyvips.Image.new_from_file(im_path, access="sequential")
                 im = UserImage(im, im_path)
                 ims.append(im)
         break
     return ims
 
 
-def save_im(im, path: str):
+def save_im(im_data, path: str, metadata = None):
     directory = os.path.dirname(path)
     Path(directory).mkdir(parents=True, exist_ok=True)
     print(f"Saving image {path}")
-
-    im_data = im.aligned
     image = Image.fromarray(im_data)
 
     meta = PngInfo()
-    meta.add_text("ScaleFactor", im.scale_factor)
+    if metadata is not None:
+        meta.add_text(*metadata)
     image.save(path, pnginfo=meta)
 
 
@@ -132,8 +156,4 @@ def show_ims(*ims, title: str = "", gray: bool = False):
 
 
 if __name__ == "__main__":
-    ims, titles = get_images("C:\\Users\\Jan\\Desktop\\ims")
-    res, titles = get_images("C:\\Users\\Jan\\Desktop\\ims\\results")
-    show_ims(*ims, title="Test", gray=True)
-
     x = 23
