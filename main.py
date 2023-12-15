@@ -94,6 +94,7 @@ ij = imagej.init('sc.fiji:fiji:2.14.0', mode="interactive")
 print(f'Init in {time.time() - setup_start}s')
 
 ### PROCESS ALIGNED IMAGES ###
+# TODO: fix saving of processed images
 with open("scripts/pipeline_script.py") as f:
     script = f.read()
     for im in [im for im in ims if not im.has_segmented()]:
